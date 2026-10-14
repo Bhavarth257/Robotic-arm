@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+runs/
+checkpoints/
+videos/
+demos/
+third_party/
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+*.onnx
+*.pt
