@@ -11,3 +11,4 @@ ros2_ws/install/
 ros2_ws/log/
 *.onnx
 *.pt
+*.egg-info/

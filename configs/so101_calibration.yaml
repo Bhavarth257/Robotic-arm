@@ -1,0 +1,19 @@
+# SO-101 joint conventions: sim (URDF "new calibration") vs real (LeRobot).
+# Both use "zero = middle of the joint's range", so offsets should be ~0 after LeRobot calibration.
+# Directions and the gripper mapping are NOT verified on hardware yet (M8a).
+verified_on_hardware: false
+
+# Sim: radians. Real: LeRobot follower with use_degrees=True (arm joints in degrees).
+# real_deg = sign * rad2deg(sim_rad) + offset_deg
+joints:
+  shoulder_pan:  {sign: 1, offset_deg: 0.0, sim_limits_rad: [-1.920, 1.920]}   # sim +: arm turns towards -y
+  shoulder_lift: {sign: 1, offset_deg: 0.0, sim_limits_rad: [-1.745, 1.745]}   # sim +: arm leans forward/down
+  elbow_flex:    {sign: 1, offset_deg: 0.0, sim_limits_rad: [-1.690, 1.690]}   # sim +: forearm folds down
+  wrist_flex:    {sign: 1, offset_deg: 0.0, sim_limits_rad: [-1.658, 1.658]}   # sim +: gripper tips down
+  wrist_roll:    {sign: 1, offset_deg: 0.0, sim_limits_rad: [-2.744, 2.841]}
+
+# LeRobot reports the gripper as 0 (closed) .. 100 (open) over its calibrated range.
+# Assumed linear: sim_rad = closed_rad + (real / 100) * (open_rad - closed_rad)
+gripper:
+  closed_rad: -0.175
+  open_rad: 1.745
