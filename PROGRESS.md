@@ -54,3 +54,32 @@ Acceptance (runs without error, peak VRAM < 3.5 GB): **pass**.
 - ManiSkill disables gravity on robot links (stand-in for gravity compensation). The real arm sags under load. Revisit in M8b system ID.
 - Joint directions, wrist_roll sign and the gripper mapping must be checked on hardware (M8a).
 - Home pose (D5) not chosen yet; needs the overhead camera's position. Will pick a provisional one in M2.
+
+## M2. Single-arm pick-and-place task `SO101PickPlace-v1` — 2026-10-14
+
+**Built**
+- `so101_rl/envs/pick_place.py`: `SO101PickPlace-v1`, 200 steps, 20 Hz (sim 100 Hz).
+  - Scene: ground plane = table top, arm base at the origin, 3 cm cube (27 g), 5 × 5 cm place zone (visual only).
+  - Reset: arm at provisional home `[0, −0.5, −0.8, 1.2, 0, 0.6]` (gripper ~40 cm up, open ~6 cm) + N(0, 0.02 rad) noise. Cube uniform in x 12–32 cm, y ±10 cm, random yaw. Zone fixed at (15, 20) cm.
+  - Region chosen by measurement: every point in x 10–34 cm, y ±12 cm at cube height is reachable (0 cm EE error); the gripper points near straight down (cos ≥ 0.9) out to x = 30 cm.
+  - Observation (39-D): joint pos + vel (incl. gripper), TCP pose, cube position, cube yaw as sin/cos(4·yaw) (a cube repeats every 90°), zone position, TCP→cube, cube→zone, previous action. No `is_grasped` (not available on the real robot).
+  - Action: `pd_joint_delta_pos` (now the agent's default mode), ±0.05 rad arm / ±0.2 rad gripper per step.
+  - Reward: reach + grasp + lift (full at 4 cm) + move-to-zone (only while lifted, so dragging is not rewarded); once placed: 4 + open gripper + TCP above cube; success = 6. Penalties: 0.1·mean(a²), 0.5 while the cube falls outside the zone. Normalised by 6 → range [−0.1, 1].
+  - Success: cube centre inside zone, resting on table (z < half + 5 mm, speed < 5 cm/s), gripper > 0.4 rad (open), TCP > 1 cm above cube top, not grasping.
+- `scripts/smoke_test.py`: `--env` option.
+
+**Gripper collision fix (asset change)**
+- Scripted grasp check (move above cube, descend, close, lift) lifted **0/16** cubes with the M1 asset. Jaw-cube contacts were nearly horizontal, but the squeezed cube twisted and slipped out between the hull pieces; rendered frames showed the moving jaw riding over the cube.
+- Tried and rejected: realistic gripper torque alone, deeper grasp (5/16), uncapped CoACD (2/16), wrist roll ±90° (0/16).
+- Fix: `prepare_so101_asset.py` replaces the last 4.5 cm of each finger with a flat box pad flush with the finger's flat inner face (fixed 1.2 × 1.8 × 4.5 cm, moving 1.2 × 4.4 × 1.8 cm); the rest of each jaw stays CoACD (13 / 8 parts).
+- Gripper force limit set to 2.5 N·m (real STS3215 ≈ 2–3 N·m); arm joints still 100 N·m.
+- Same naive script after the fix (64 envs, no wrist rotation): **42/64** lifted with cube aligned to the jaws, **29/64** at random yaw (was 0). The policy can also rotate the wrist, which the script does not.
+
+**Acceptance**
+- `pytest tests/test_pick_place.py`: deterministic reset with fixed seed; success true for a cube placed in the zone (16/16 envs) and false at 3 points outside it; reward finite and within [−0.1, 1] for 100 random-action steps over 512 envs: **pass** (all 10 tests pass, including M1's).
+- Random actions (policy action space), 1000 steps: 512 envs 12,648 FPS / 1,495 MiB; 1024 envs 19,090 FPS / 1,689 MiB. Fits under 3.5 GB: **pass**.
+
+**Open issues**
+- Home pose is provisional (overhead camera position unknown).
+- Arm force limit (100 N·m) and gains still placeholders. The SO-101 MuJoCo model gives STS3215 values to start M8b from: kp 17.8 N·m/rad, force ±3.35 N·m, damping 0.6, armature 0.028, friction loss 0.052.
+- The success predicate also accepts a cube pushed into the zone without lifting; check training videos in M4.

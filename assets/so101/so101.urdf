@@ -285,7 +285,7 @@
         <mesh filename="meshes/wrist_roll_follower_so101_v1.stl.coacd.obj" />
       </geometry>
     </collision>
-  </link>
+  <collision><origin xyz="-0.013900 -0.000218 -0.081930" rpy="0 0 0" /><geometry><box size="0.012000 0.018259 0.044991" /></geometry></collision></link>
 
   
   <link name="gripper_frame_link">
@@ -325,7 +325,7 @@
         <mesh filename="meshes/moving_jaw_so101_v1.stl.coacd.obj" />
       </geometry>
     </collision>
-  </link>
+  <collision><origin xyz="-0.006300 -0.059824 0.018894" rpy="0 0 0" /><geometry><box size="0.012000 0.044351 0.017765" /></geometry></collision></link>
 
   
   <joint name="gripper" type="revolute">

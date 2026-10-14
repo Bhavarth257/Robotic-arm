@@ -44,18 +44,22 @@ class SO101(BaseAgent):
     @property
     def _controller_configs(self):
         stiffness, damping, force_limit = 1e3, 1e2, 100
+        # Gripper torque near a real STS3215 (~2-3 N*m). At 100 N*m the jaws crush
+        # through the cube instead of holding it.
+        gripper_force_limit = 2.5
+        joint_force_limits = [force_limit] * 5 + [gripper_force_limit]
 
         pd_joint_pos = PDJointPosControllerConfig(
             self.arm_joint_names + self.gripper_joint_names,
             lower=None, upper=None,
-            stiffness=stiffness, damping=damping, force_limit=force_limit,
+            stiffness=stiffness, damping=damping, force_limit=joint_force_limits,
             normalize_action=False,
         )
         # Small per-step deltas: the real servos shake and wear if driven fast.
         pd_joint_delta_pos = PDJointPosControllerConfig(
             self.arm_joint_names + self.gripper_joint_names,
             [-0.05] * 5 + [-0.2], [0.05] * 5 + [0.2],
-            stiffness=stiffness, damping=damping, force_limit=force_limit,
+            stiffness=stiffness, damping=damping, force_limit=joint_force_limits,
             use_delta=True,
         )
         pd_joint_target_delta_pos = copy.deepcopy(pd_joint_delta_pos)
@@ -70,16 +74,17 @@ class SO101(BaseAgent):
         )
         gripper_pos = PDJointPosControllerConfig(
             self.gripper_joint_names, lower=-0.2, upper=0.2,
-            stiffness=stiffness, damping=damping, force_limit=force_limit,
+            stiffness=stiffness, damping=damping, force_limit=gripper_force_limit,
             use_delta=True,
         )
         # Accumulates deltas onto the previous target, so PD lag does not eat the motion.
         arm_ee_target_delta_pos = copy.deepcopy(arm_ee_delta_pos)
         arm_ee_target_delta_pos.use_target = True
 
+        # First entry is the default control mode: the policy's action space (D1).
         return deepcopy_dict(dict(
-            pd_joint_pos=pd_joint_pos,
             pd_joint_delta_pos=pd_joint_delta_pos,
+            pd_joint_pos=pd_joint_pos,
             pd_joint_target_delta_pos=pd_joint_target_delta_pos,
             pd_ee_delta_pos=dict(arm=arm_ee_delta_pos, gripper=gripper_pos),
             pd_ee_target_delta_pos=dict(arm=arm_ee_target_delta_pos, gripper=gripper_pos),

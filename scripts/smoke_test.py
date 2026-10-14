@@ -1,4 +1,4 @@
-"""M0 smoke test: run PickCube-v1 on the GPU sim with random actions, report FPS and peak VRAM."""
+"""Smoke test: run an env on the GPU sim with random actions, report FPS and peak VRAM."""
 import argparse
 import os
 import subprocess
@@ -6,6 +6,7 @@ import time
 
 import gymnasium as gym
 import mani_skill.envs  # noqa: F401  registers envs
+import so101_rl.envs  # noqa: F401
 import torch
 
 
@@ -24,6 +25,7 @@ def gpu_mem_mib():
 
 def main():
     p = argparse.ArgumentParser()
+    p.add_argument("--env", default="PickCube-v1")
     p.add_argument("--num-envs", type=int, default=256)
     p.add_argument("--steps", type=int, default=1000)
     p.add_argument("--seed", type=int, default=0)
@@ -32,7 +34,7 @@ def main():
     assert torch.cuda.is_available(), "CUDA not available"
     print("GPU:", torch.cuda.get_device_name(0))
 
-    env = gym.make("PickCube-v1", num_envs=args.num_envs, obs_mode="state", sim_backend="gpu")
+    env = gym.make(args.env, num_envs=args.num_envs, obs_mode="state", sim_backend="gpu")
     env.reset(seed=args.seed)
     low = torch.as_tensor(env.action_space.low, device="cuda")
     high = torch.as_tensor(env.action_space.high, device="cuda")
