@@ -1,0 +1,6 @@
+# Tiny run to check the script works end to end, not to learn anything.
+exp_name: smoke
+num_envs: 256
+total_timesteps: 512000
+eval_freq: 5
+checkpoint_minutes: 0.5
