@@ -159,7 +159,10 @@ class SO101PickPlaceEnv(BaseEnv):
         place = 1 - torch.tanh(5 * (cube_p - goal).norm(dim=1))
         reward = reach + grasped + grasped * carry + grasped * carry * place
 
-        placed = info["in_zone"] & info["on_table"] & ~info["is_grasped"]
+        # Count as placed as soon as the cube is let go low over the zone, not only once it has
+        # settled: otherwise opening the gripper first loses the grasp reward and the policy
+        # learned to hold the cube 5 cm above the zone forever.
+        placed = info["in_zone"] & ~info["is_grasped"] & (cube_p[:, 2] < CUBE_HALF + 0.05)
         above = (tcp_p[:, 2] > cube_p[:, 2] + CUBE_HALF + 0.01).float()
         reward = torch.where(placed, 4 + 0.5 * gripper + 0.5 * above, reward)
         reward = torch.where(info["success"], torch.full_like(reward, MAX_REWARD), reward)
