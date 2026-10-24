@@ -13,7 +13,8 @@ from mani_skill.utils.building import actors
 from mani_skill.utils.building.ground import build_ground
 from mani_skill.utils.registration import register_env
 from mani_skill.utils.structs.pose import Pose
-from mani_skill.utils.structs.types import SimConfig
+from mani_skill.utils.structs.types import GPUMemoryConfig, SimConfig
+
 
 from so101_rl.agents import SO101
 
@@ -26,6 +27,7 @@ SPAWN_HALF = 0.10
 ZONE_CENTER = (0.15, 0.20)
 ZONE_HALF = 0.025
 GRIPPER_OPEN = 0.4  # rad; jaw gap clears a 3.5 cm cube
+GRIPPER_SHUT = 0.0  # rad; below this the jaws are closer than any cube, so nothing is held
 LIFT_HEIGHT = 0.04  # lift above resting height that earns full lift reward
 MAX_REWARD = 6.0
 
@@ -39,9 +41,20 @@ class SO101PickPlaceEnv(BaseEnv):
         self.robot_init_qpos_noise = robot_init_qpos_noise
         super().__init__(*args, robot_uids=robot_uids, **kwargs)
 
-    @property
-    def _default_sim_config(self):
-        return SimConfig(sim_freq=100, control_freq=20)
+        @property
+        def _default_sim_config(self):
+        # Gripper contacts (many convex parts per jaw) overflow PhysX's default GPU buffers
+        # at 1024 envs and crash with CUDA error 700. Sized like ManiSkill's own tasks.
+         n = max(1024, self.num_envs)
+         return SimConfig(
+            sim_freq=100, control_freq=20,
+            gpu_memory_config=GPUMemoryConfig(
+                max_rigid_contact_count=self.num_envs * n * 8,
+                max_rigid_patch_count=self.num_envs * n * 2,
+                found_lost_pairs_capacity=2**26,
+            ),
+        )
+
 
     @property
     def _default_sensor_configs(self):
@@ -114,8 +127,11 @@ class SO101PickPlaceEnv(BaseEnv):
         tcp_p = self.agent.tcp_pose.p
         in_zone = ((cube_p[:, :2] - zone_p[:, :2]).abs() <= ZONE_HALF).all(dim=1)
         on_table = (cube_p[:, 2] < CUBE_HALF + 0.005) & (self.cube.linear_velocity.norm(dim=1) < 0.05)
-        is_grasped = self.agent.is_grasping(self.cube)
-        gripper_open = self.agent.robot.get_qpos()[:, -1] > GRIPPER_OPEN
+        gripper_q = self.agent.robot.get_qpos()[:, -1]
+        # A fully shut gripper pressing on the cube's top edges also triggers both jaw contacts;
+        # the first policy exploited that instead of grasping.
+        is_grasped = self.agent.is_grasping(self.cube) & (gripper_q > GRIPPER_SHUT)
+        gripper_open = gripper_q > GRIPPER_OPEN
         tcp_above = tcp_p[:, 2] > cube_p[:, 2] + CUBE_HALF + 0.01
         return dict(
             success=in_zone & on_table & gripper_open & tcp_above & ~is_grasped,
@@ -130,14 +146,16 @@ class SO101PickPlaceEnv(BaseEnv):
         tcp_p = self.agent.tcp_pose.p
         grasped = info["is_grasped"].float()
 
-        reach = 1 - torch.tanh(5 * (cube_p - tcp_p).norm(dim=1))
+        gripper = torch.clamp(self.agent.robot.get_qpos()[:, -1] / GRIPPER_OPEN, 0, 1)
+        # Approach with the gripper open: closing early loses half the reach reward,
+        # closing on the cube still pays because the grasp term (+1) outweighs it.
+        reach = (1 - torch.tanh(5 * (cube_p - tcp_p).norm(dim=1))) * (0.5 + 0.5 * torch.maximum(gripper, grasped))
         lift = torch.clamp((cube_p[:, 2] - CUBE_HALF) / LIFT_HEIGHT, 0, 1)
         move = 1 - torch.tanh(5 * (cube_p[:, :2] - zone_p[:, :2]).norm(dim=1))
         # Moving only pays while lifted, so dragging the cube along the table is not rewarded.
         reward = reach + grasped + grasped * lift + grasped * lift * move
 
         placed = info["in_zone"] & info["on_table"] & ~info["is_grasped"]
-        gripper = torch.clamp(self.agent.robot.get_qpos()[:, -1] / GRIPPER_OPEN, 0, 1)
         above = (tcp_p[:, 2] > cube_p[:, 2] + CUBE_HALF + 0.01).float()
         reward = torch.where(placed, 4 + 0.5 * gripper + 0.5 * above, reward)
         reward = torch.where(info["success"], torch.full_like(reward, MAX_REWARD), reward)

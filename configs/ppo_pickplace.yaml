@@ -1,0 +1,16 @@
+# M4 teacher, state obs, no domain randomisation.
+# Hyperparameters from ManiSkill's PPO PickCube example (1024 envs, 8 epochs, 32 minibatches);
+# gamma raised 0.8 -> 0.9 for the longer 200-step task.
+exp_name: ppo_pickplace
+seed: 1
+num_envs: 512
+num_steps: 50
+total_timesteps: 20000000
+gamma: 0.9
+gae_lambda: 0.9
+update_epochs: 8
+num_minibatches: 32
+eval_freq: 10
+checkpoint_minutes: 10
+# Keep some exploration: the first run's action std collapsed to ~0.1 while stuck reaching.
+ent_coef: 0.005
