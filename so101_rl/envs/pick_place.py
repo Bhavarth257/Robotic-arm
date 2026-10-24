@@ -151,9 +151,13 @@ class SO101PickPlaceEnv(BaseEnv):
         # closing on the cube still pays because the grasp term (+1) outweighs it.
         reach = (1 - torch.tanh(5 * (cube_p - tcp_p).norm(dim=1))) * (0.5 + 0.5 * torch.maximum(gripper, grasped))
         lift = torch.clamp((cube_p[:, 2] - CUBE_HALF) / LIFT_HEIGHT, 0, 1)
-        move = 1 - torch.tanh(5 * (cube_p[:, :2] - zone_p[:, :2]).norm(dim=1))
-        # Moving only pays while lifted, so dragging the cube along the table is not rewarded.
-        reward = reach + grasped + grasped * lift + grasped * lift * move
+        # Carrying pays only while lifted (no dragging), or once above the zone, so that lowering
+        # the cube there costs nothing: the previous policy held the cube high over the zone.
+        carry = torch.maximum(lift, info["in_zone"].float())
+        goal = zone_p.clone()
+        goal[:, 2] = CUBE_HALF  # resting on the table inside the zone
+        place = 1 - torch.tanh(5 * (cube_p - goal).norm(dim=1))
+        reward = reach + grasped + grasped * carry + grasped * carry * place
 
         placed = info["in_zone"] & info["on_table"] & ~info["is_grasped"]
         above = (tcp_p[:, 2] > cube_p[:, 2] + CUBE_HALF + 0.01).float()
