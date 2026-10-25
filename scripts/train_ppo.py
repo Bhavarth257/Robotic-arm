@@ -11,6 +11,7 @@ Usage:
 """
 import argparse
 import random
+import subprocess
 import time
 from collections import defaultdict
 from dataclasses import dataclass, fields
@@ -18,6 +19,7 @@ from pathlib import Path
 
 import gymnasium as gym
 import numpy as np
+import psutil
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -56,6 +58,7 @@ class Config:
     eval_freq: int = 10  # iterations
     checkpoint_minutes: float = 10.0
     capture_video: bool = True
+    domain_rand: tuple = ()  # names from so101_rl.envs.pick_place.DR_OPTIONS, or ["all"]
 
 
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
@@ -98,6 +101,13 @@ class Agent(nn.Module):
         return action, probs.log_prob(action).sum(1), probs.entropy().sum(1), self.critic(x)
 
 
+def gpu_used_mib():
+    # Whole-GPU usage incl. PhysX and the desktop: a 4 GB laptop GPU shared with Xorg can freeze the screen.
+    out = subprocess.run(["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+                         capture_output=True, text=True).stdout.strip()
+    return int(out) if out.isdigit() else -1
+
+
 def load_config(path):
     cfg = Config()
     if path:
@@ -111,7 +121,8 @@ def load_config(path):
 
 
 def make_envs(cfg, run_dir):
-    kw = dict(obs_mode="state", render_mode="rgb_array", sim_backend="gpu", control_mode=cfg.control_mode)
+    kw = dict(obs_mode="state", render_mode="rgb_array", sim_backend="gpu", control_mode=cfg.control_mode,
+              domain_rand=tuple(cfg.domain_rand))
     envs = gym.make(cfg.env_id, num_envs=cfg.num_envs, **kw)
     eval_envs = gym.make(cfg.env_id, num_envs=cfg.num_eval_envs, **kw)
     if cfg.capture_video:
@@ -297,7 +308,11 @@ def main():
         writer.add_scalar("time/rollout_time", rollout_t, global_step)
         writer.add_scalar("time/update_time", update_t, global_step)
         if iteration % 10 == 0:
-            print(f"iter {iteration}/{num_iterations} step {global_step} SPS {sps}")
+            ram = psutil.virtual_memory().percent
+            gpu = gpu_used_mib()
+            writer.add_scalar("system/ram_percent", ram, global_step)
+            writer.add_scalar("system/gpu_used_mib", gpu, global_step)
+            print(f"iter {iteration}/{num_iterations} step {global_step} SPS {sps} RAM {ram:.0f}% GPU {gpu} MiB")
 
         if time.time() - last_ckpt > cfg.checkpoint_minutes * 60:
             save("latest.pt", iteration)
