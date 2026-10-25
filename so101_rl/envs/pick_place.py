@@ -120,7 +120,8 @@ class SO101PickPlaceEnv(BaseEnv):
 
         n, n_act = self.num_envs, 6
         self.last_action = torch.zeros(n, n_act, device=self.device)   # what the policy commanded
-        self.applied_action = torch.zeros(n, n_act, device=self.device)  # what reached the robot
+        self.last_action2 = torch.zeros(n, n_act, device=self.device)  # ...one step before that
+        self.prev_command = torch.zeros(n, n_act, device=self.device)  # sent last step; delayed envs execute it now
         self.action_gain = torch.ones(n, n_act, device=self.device)
         self.delayed = torch.zeros(n, dtype=torch.bool, device=self.device)
         self.cube_lag = torch.zeros(n, dtype=torch.long, device=self.device)
@@ -142,7 +143,8 @@ class SO101PickPlaceEnv(BaseEnv):
             self.cube.set_pose(Pose.create_from_pq(xyz, yaw_q))
 
             self.last_action[env_idx] = 0
-            self.applied_action[env_idx] = 0
+            self.last_action2[env_idx] = 0
+            self.prev_command[env_idx] = 0
             if "action_gain" in self.dr:
                 self.action_gain[env_idx] = 0.8 + 0.4 * torch.rand(b, 6)
             if "action_delay" in self.dr:
@@ -156,11 +158,12 @@ class SO101PickPlaceEnv(BaseEnv):
     def step(self, action):
         a = common.to_tensor(action, device=self.device).reshape(self.num_envs, -1).float()
         a = torch.clamp(a, -1, 1)
+        self.last_action2 = self.last_action
         self.last_action = a  # the policy's own command, as the real controller would know it
-        applied = torch.clamp(a * self.action_gain, -1, 1)
-        # A delayed env executes the previous command this step.
-        applied = torch.where(self.delayed[:, None], self.applied_action, applied)
-        self.applied_action = applied
+        command = torch.clamp(a * self.action_gain, -1, 1)
+        # A delayed env executes the previous step's command now and this one next step.
+        applied = torch.where(self.delayed[:, None], self.prev_command, command)
+        self.prev_command = command
         return super().step(applied)
 
     def _get_obs_agent(self):
@@ -197,6 +200,9 @@ class SO101PickPlaceEnv(BaseEnv):
             tcp_to_cube=cube_p - tcp.p,
             cube_to_zone=self.zone.pose.p - cube_p,
             prev_action=self.last_action,
+            # Two past commands let the policy tell from the arm's motion whether its commands
+            # arrive a step late. Last key, so it is appended at the end of the flat obs.
+            prev_action2=self.last_action2,
         )
 
     def evaluate(self):
