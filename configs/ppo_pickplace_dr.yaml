@@ -1,0 +1,16 @@
+# M5: fine-tune the M4 policy with all domain randomisation on (use with --init).
+exp_name: ppo_pickplace_dr
+seed: 3
+num_envs: 512
+num_steps: 50
+total_timesteps: 20000000
+gamma: 0.9
+gae_lambda: 0.9
+update_epochs: 8
+num_minibatches: 32
+eval_freq: 10
+checkpoint_minutes: 10
+ent_coef: 0.005
+num_eval_envs: 64
+capture_video: false  # 64 eval envs tiled into one video took ~10 GB RAM and froze the laptop
+domain_rand: [all]
