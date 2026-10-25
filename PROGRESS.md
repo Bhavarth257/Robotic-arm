@@ -83,3 +83,40 @@ Acceptance (runs without error, peak VRAM < 3.5 GB): **pass**.
 - Home pose is provisional (overhead camera position unknown).
 - Arm force limit (100 N·m) and gains still placeholders. The SO-101 MuJoCo model gives STS3215 values to start M8b from: kp 17.8 N·m/rad, force ±3.35 N·m, damping 0.6, armature 0.028, friction loss 0.052.
 - The success predicate also accepts a cube pushed into the zone without lifting; check training videos in M4.
+
+## M4. PPO training (state-based, no randomisation) — 2026-10-24
+
+**Built**
+- `scripts/train_ppo.py`: ManiSkill v3.0.1 `ppo.py` adapted (PPO update unchanged): YAML config, checkpoint every 10 min + best-by-eval, `--resume` (continue a run), `--init` (start from another run's weights).
+- `configs/ppo_pickplace.yaml` (from scratch, 20M steps), `configs/ppo_pickplace_ft.yaml` (fine-tune, 10M steps), `configs/ppo_smoke.yaml`. 512 envs, 50 steps/rollout, γ 0.9, λ 0.9, 8 epochs, 32 minibatches, ent_coef 0.005.
+- `scripts/evaluate.py`: N episodes at once with a fixed seed, ending at first success; success, grasp rate, episode length; 3 success + 2 failure videos.
+- `scripts/play_policy.py`: watch a policy in the SAPIEN viewer (CPU sim; needs the GPU free of training, 4 GB is not enough for both).
+- Env: PhysX GPU contact buffers enlarged (`GPUMemoryConfig`); 1024 envs still crashed with CUDA error 700 once the policy started grasping, 512 envs run stably.
+
+**Training history (each run diagnosed with a 64-episode probe of the policy)**
+| Run | Steps | Behaviour | Fix applied next |
+|---|---|---|---|
+| `ppo_pickplace_1792343056` | 20M | eval return ~35: shut the gripper early and pressed it on the cube; `is_grasping` fired on the cube's top edges (42/64) without holding it | grasp only counts if gripper > 0 rad; reach reward halved while the gripper is closed; ent_coef 0.005 |
+| `ppo_pickplace_1792834675` | 20M | grasp 64/64, lift 59/64, carried over the zone (58/64) but held it ~35 cm high | carry/place reward = 3-D distance to the resting spot in the zone; lowering inside the zone keeps lift credit |
+| `ppo_pickplace_ft_1792839283` (init from above) | 10M | lowered to ~5 cm over the zone, never released (56/64 still holding) | release low over the zone counts as placed immediately (no reward dip while the cube drops) |
+| `ppo_pickplace_ft_1792841596` | 10M | first successes from ~7M steps; 80.5% on 512 episodes | more training |
+| `ppo_pickplace_ft_1792844327` | 10M | 95.7% on 512 episodes (seed 2026), 94.0% on the seed-0 acceptance test | 64 eval envs; no training videos |
+| `ppo_pickplace_ft_1792858771` | 10M | 96.2% (best.pt) — **M4 policy** | — |
+
+Total ≈ 80M env steps, ~4.7k steps/s at 512 envs.
+
+**Acceptance** (`python scripts/evaluate.py --ckpt <ckpt>`, 500 episodes, seed 0, no randomisation):
+| Checkpoint | Success | Grasp | Mean ep. length |
+|---|---|---|---|
+| `ppo_pickplace_ft_1792844327/final.pt` | 94.0% | 99.8% | 107.8 |
+| `ppo_pickplace_ft_1792858771/final.pt` | 95.8% | 100% | 100.4 |
+| `ppo_pickplace_ft_1792858771/best.pt` | **96.2%** (481/500) | 100% | 103.7 (99.9 for successes) |
+
+Target ≥ 95%: **pass**. M4 policy: `runs/ppo_pickplace_ft_1792858771/best.pt` (runs/ is not in git; keep a copy).
+- With 16 eval envs `best.pt` was unreliable (86.7% vs 95.7% for `final.pt`); 64 eval envs fixed that.
+- Training videos are off in the fine-tune config: 64 eval envs tiled into one video needed ~10 GB RAM and froze the laptop. `evaluate.py` saves small videos instead.
+
+**Open issues**
+- Both failure videos are carry failures at the workspace edge after a good grasp: one ends holding the cube just past the zone corner, one folds the arm over its base.
+- `success_at_end` ≈ 0: after placing, the policy keeps moving and often knocks the cube. Fine for deployment (stop at success); worth a "stay still after placing" reward before M5.
+- Raise `num_eval_envs` (16 → 64) so `best.pt` is meaningful.
