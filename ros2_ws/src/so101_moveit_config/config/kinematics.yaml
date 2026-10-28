@@ -1,0 +1,9 @@
+arm:
+  kinematics_solver: pick_ik/PickIkPlugin
+  kinematics_solver_timeout: 0.05
+  # 5-DoF arm: it cannot reach an arbitrary position AND orientation, so solve position only
+  # (same as the sim's EE controller). Orientation is left to the solver.
+  mode: global
+  position_scale: 1.0
+  rotation_scale: 0.0
+  position_threshold: 0.001
