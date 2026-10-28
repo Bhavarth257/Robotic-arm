@@ -1,6 +1,36 @@
+# Controllers for the real arm. MoveIt uses arm_controller + gripper_controller; the policy bridge uses
+# forward_position_controller. They claim the same joints, so only one set is active at a time:
+#   ros2 control switch_controllers --deactivate arm_controller gripper_controller \
+#     --activate forward_position_controller
 controller_manager:
   ros__parameters:
     update_rate: 100  # Hz; one sync read of 6 servos takes ~2 ms
 
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
+
+    arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    gripper_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    forward_position_controller:
+      type: position_controllers/JointGroupPositionController
+
+arm_controller:
+  ros__parameters:
+    joints: [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll]
+    command_interfaces: [position]
+    state_interfaces: [position, velocity]
+
+gripper_controller:
+  ros__parameters:
+    joints: [gripper]
+    command_interfaces: [position]
+    state_interfaces: [position, velocity]
+
+forward_position_controller:
+  ros__parameters:
+    # Same order as the policy bridge's joint_names.
+    joints: [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll, gripper]

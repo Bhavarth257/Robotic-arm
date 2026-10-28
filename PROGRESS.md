@@ -222,3 +222,22 @@ Failure breakdown of the first run's best.pt (82 failures): 54 never got the cub
 **Notes**
 - `colcon build` fails with `No module named 'catkin_pkg'` when a Python venv is active: `deactivate` first.
 - Real ranges are 4–9° per side wider than the sim limits; the write path must clamp targets to the URDF limits.
+
+## M8a (part 2). Write path, controllers, MoveIt on the real arm (read-only checks) — 2026-10-29
+
+**Built** (`so101_hardware`)
+- Write path, off unless `read_only:=false`: on activate goal = present position, Torque_Limit (RAM) = `torque_limit` (default 500 = 50 %), torque on + EEPROM lock (as LeRobot does). Each cycle: command clamped to the URDF limits (command interface min/max), arm joints rate-limited to 2.5 rad/s, SYNC WRITE of all goals. Arm joint > 0.5 rad behind its target → hold the measured pose and ignore commands until restart. Torque off on deactivate and in the destructor. Gripper: no rate limit, no tracking check (blocked by the cube on every grasp).
+- Serial port opened with TIOCEXCL: a second driver (or LeRobot) cannot open the bus. Found when a still-running `real_view` and a new launch garbled each other's packets; the driver's 10-failed-reads check shut the hardware down as intended.
+- `config/controllers.yaml`: `arm_controller`, `gripper_controller` (JointTrajectoryController, active) and `forward_position_controller` (JointGroupPositionController, all 6 joints in the bridge's order, loaded inactive).
+- `launch/real_moveit.launch.py`: MoveIt config with the real-hardware URDF, ros2_control, spawners, move_group, RViz (`rviz:=false` for headless tests).
+- `so101_moveit_config` SRDF: collisions disabled for shoulder–wrist, shoulder–lower_arm, shoulder–gripper, upper_arm–wrist. The real arm rests folded with these touching (collision meshes overlap 0.3–2.2 mm), so every plan from rest failed with START_STATE_INVALID. Cost: MoveIt will not stop the arm folding into itself near the rest pose.
+
+**Acceptance (read-only, motors off)**
+- All controllers activate; command interfaces available and claimed.
+- From the real rest pose: `/check_state_validity` valid; plan to home succeeds (135 points, 13.4 s at 10 % speed); execute reports SUCCEEDED (nothing moves in read-only).
+- Switch to `forward_position_controller` and back: OK.
+- Second open of `/dev/ttyACM0` while the driver runs: refused (EBUSY).
+
+**Notes**
+- Real rest pose has shoulder_lift −1.828 rad, beyond the −1.745 limit: when torque comes on, the clamp lifts the shoulder ~5° off its stop.
+- First powered run not done yet.

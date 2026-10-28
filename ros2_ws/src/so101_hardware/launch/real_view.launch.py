@@ -18,6 +18,7 @@ def generate_launch_description():
         "xacro ", str(share / "urdf" / "so101_real.urdf.xacro"),
         " port:=", LaunchConfiguration("port"),
         " calibration_file:=", LaunchConfiguration("calibration_file"),
+        " read_only:=true",
     ]), value_type=str)
     return LaunchDescription([
         DeclareLaunchArgument("port", default_value="/dev/ttyACM0"),

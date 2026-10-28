@@ -3,16 +3,23 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="so101_new_calib">
   <xacro:arg name="port" default="/dev/ttyACM0"/>
   <xacro:arg name="calibration_file" default=""/>
+  <!-- true: never write to the servos (limp arm). false: torque on, the arm follows commands. -->
+  <xacro:arg name="read_only" default="true"/>
+  <!-- Per mille of max torque; 500 = 50 % for the first tests, so a collision stalls instead of breaks. -->
+  <xacro:arg name="torque_limit" default="500"/>
 
   <xacro:include filename="$(find so101_description)/urdf/so101.urdf"/>
 
-  <!-- Arm joints: sim_rad = sign * deg2rad(lerobot_deg - offset_deg). Gripper: LeRobot 0..100 -> closed..open.
-       Signs and offsets are checked against RViz with the arm moved by hand (M8a). -->
-  <xacro:macro name="arm_joint" params="name sign:=1 offset_deg:=0.0">
+  <!-- Arm joints: sim_rad = sign * deg2rad(lerobot_deg - offset_deg), checked against RViz (M8a).
+       lo/hi: command limits = the URDF joint limits. -->
+  <xacro:macro name="arm_joint" params="name lo hi sign:=1 offset_deg:=0.0">
     <joint name="${name}">
       <param name="sign">${sign}</param>
       <param name="offset_deg">${offset_deg}</param>
-      <command_interface name="position"/>
+      <command_interface name="position">
+        <param name="min">${lo}</param>
+        <param name="max">${hi}</param>
+      </command_interface>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
     </joint>
@@ -23,16 +30,23 @@
       <plugin>so101_hardware/SO101System</plugin>
       <param name="port">$(arg port)</param>
       <param name="calibration_file">$(arg calibration_file)</param>
+      <param name="read_only">$(arg read_only)</param>
+      <param name="torque_limit">$(arg torque_limit)</param>
+      <param name="max_velocity">2.5</param>  <!-- rad/s, arm joints -->
+      <param name="max_tracking_error">0.5</param>  <!-- rad, arm joints: beyond this the driver holds -->
     </hardware>
-    <xacro:arm_joint name="shoulder_pan"/>
-    <xacro:arm_joint name="shoulder_lift"/>
-    <xacro:arm_joint name="elbow_flex"/>
-    <xacro:arm_joint name="wrist_flex"/>
-    <xacro:arm_joint name="wrist_roll"/>
+    <xacro:arm_joint name="shoulder_pan" lo="-1.91986" hi="1.91986"/>
+    <xacro:arm_joint name="shoulder_lift" lo="-1.74533" hi="1.74533"/>
+    <xacro:arm_joint name="elbow_flex" lo="-1.69" hi="1.69"/>
+    <xacro:arm_joint name="wrist_flex" lo="-1.65806" hi="1.65806"/>
+    <xacro:arm_joint name="wrist_roll" lo="-2.74385" hi="2.84121"/>
     <joint name="gripper">
       <param name="closed_rad">-0.175</param>
       <param name="open_rad">1.745</param>
-      <command_interface name="position"/>
+      <command_interface name="position">
+        <param name="min">-0.174533</param>
+        <param name="max">1.74533</param>
+      </command_interface>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
     </joint>

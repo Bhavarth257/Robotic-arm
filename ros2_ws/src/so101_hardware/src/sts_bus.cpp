@@ -2,6 +2,7 @@
 
 #include <fcntl.h>
 #include <poll.h>
+#include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -13,7 +14,9 @@ namespace
 {
 constexpr uint8_t BROADCAST = 0xFE;
 constexpr uint8_t INST_READ = 0x02;
+constexpr uint8_t INST_WRITE = 0x03;
 constexpr uint8_t INST_SYNC_READ = 0x82;
+constexpr uint8_t INST_SYNC_WRITE = 0x83;
 
 speed_t to_speed(int baud)
 {
@@ -37,6 +40,11 @@ bool StsBus::open(const std::string & port, int baud)
   }
   fd_ = ::open(port.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
   if (fd_ < 0) {
+    return false;
+  }
+  // Two drivers on one bus garble each other's packets: claim the port, so a second open fails.
+  if (ioctl(fd_, TIOCEXCL) != 0) {
+    close();
     return false;
   }
   termios tio{};
@@ -153,6 +161,29 @@ bool StsBus::read_u16(uint8_t id, uint8_t addr, int & out)
   }
   out = data[0] | (data[1] << 8);
   return true;
+}
+
+bool StsBus::write_u8(uint8_t id, uint8_t addr, uint8_t value)
+{
+  std::vector<uint8_t> ack;
+  return send(id, INST_WRITE, {addr, value}) && receive(id, 0, ack);
+}
+
+bool StsBus::write_u16(uint8_t id, uint8_t addr, int value)
+{
+  std::vector<uint8_t> ack;
+  return send(id, INST_WRITE, {addr, static_cast<uint8_t>(value & 0xFF), static_cast<uint8_t>(value >> 8)}) &&
+         receive(id, 0, ack);
+}
+
+bool StsBus::sync_write_u16(uint8_t addr, const std::vector<uint8_t> & ids, const std::vector<int> & values)
+{
+  std::vector<uint8_t> params{addr, 2};
+  for (size_t i = 0; i < ids.size(); ++i) {
+    params.insert(params.end(), {ids[i], static_cast<uint8_t>(values[i] & 0xFF),
+      static_cast<uint8_t>(values[i] >> 8)});
+  }
+  return send(BROADCAST, INST_SYNC_WRITE, params);
 }
 
 }  // namespace so101_hardware
