@@ -1,0 +1,13 @@
+/**:
+  ros__parameters:
+    base_frame: base_link
+    # Printed sizes: measure the black square of each with a ruler and enter the real values.
+    table_marker_size: 0.080
+    cube_marker_size: 0.022
+    cube_size: 0.030
+    # Table marker (id 0) centre in base_link and the yaw of its x axis. With the marker's top edge
+    # pointing to robot +x (forward), its x axis points to robot -y: yaw = -pi/2.
+    # Measured: the black square's back-right corner is 30 cm forward of and 33 cm right of the point
+    # under the shoulder_pan axis; centre = corner + 4 cm forward + 4 cm left, x += 0.0388 for base_link.
+    table_marker_pose: [0.3788, -0.29, 0.0, -1.5708]
+    camera_pose_smoothing: 0.1  # 0..1 per frame; lower = steadier, slower to follow a bumped camera

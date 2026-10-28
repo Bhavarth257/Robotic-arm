@@ -188,3 +188,22 @@ Failure breakdown of the first run's best.pt (82 failures): 54 never got the cub
 - No `forward_position_controller` is configured yet (MoveIt's mock setup only has trajectory controllers); add it with the real hardware interface (M8a) and switch controllers between MoveIt and the policy.
 - D4 (keep running while the gripper hides the cube from the camera) not implemented: needs the real camera to see how often it happens.
 - Testing tip: a running MoveIt demo publishes `/joint_states` too; run checks with a separate `ROS_DOMAIN_ID`.
+
+## M8c. Overhead camera + ArUco object pose — 2026-10-29
+
+**Built** `ros2_ws/src/so101_perception`
+- `udev/99-so101-cameras.rules`: fixed names `/dev/overhead_camera` (Lenovo 300 FHD, 17ef:4831) and `/dev/wrist_camera` (IMX335, 0bda:3035); usb_cam cannot use the `/dev/v4l/by-id` links.
+- `launch/camera.launch.py`, `launch/perception.launch.py`: usb_cam 1920x1080 MJPEG 30 fps in namespace `overhead_camera`. Nodes read `image_raw/compressed`: raw 1080p over DDS arrives at ~0.35 Hz, compressed at 30 Hz.
+- `scripts/calibrate_camera.py` (8x6 checkerboard, 25 mm squares, reads V4L2 directly) → `config/overhead_camera_info.yaml`: fx 1075.3, fy 1075.0, cx 943.8, cy 506.4.
+- `aruco_node` (C++, OpenCV 4.5 aruco, DICT_4X4_50): table marker id 0 (80 mm) at a measured pose gives the camera pose (smoothed, broadcast as TF base_link → overhead_camera_optical, kept while the marker is hidden); cube marker id 1 (top) or the largest of 2-5 (sides), 22 mm on a 30 mm cube → cube centre and yaw (mod 90°) on `/object_pose` in base_link. Debug image on `~/debug/compressed`, only drawn while subscribed.
+- `scripts/make_print_sheets.py` → checkerboard, table marker and cube net PDFs in `prints/` (not in git).
+- Table marker measured at base_link (0.3788, −0.29, 0), top edge pointing forward (yaw of marker x = −π/2).
+
+**Acceptance**
+- Detection: markers 0 and 1 found in 30/30 frames, table marker ~130 px wide; `/object_pose` ~10 Hz; jitter std 0.4–2.7 mm; cube z 1.52 cm (true 1.5).
+- Position accuracy: user's visual check of the published pose against the cube's measured position, "very slightly off". The planned 20-placement < 1 cm test was **skipped** at the user's decision; to be done if the real pick-and-place misses.
+
+**Open issues**
+- `/object_pose` at ~10 Hz while the camera gives 30 fps: the node processes full 1080p frames; detecting on a downscaled image or a region of interest would speed it up. The bridge's 200 ms watchdog tolerates it.
+- Calibration RMS reprojection error not recorded; printed marker sizes not re-measured (assumed 80 / 22 mm).
+- Wrist camera not in the launch yet. D4 (cube hidden by the gripper) still open.

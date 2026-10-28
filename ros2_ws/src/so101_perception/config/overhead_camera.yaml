@@ -1,0 +1,13 @@
+# Lenovo 300 FHD webcam, mounted overhead looking down at the workspace.
+/**:  # any node name/namespace that loads this file
+  ros__parameters:
+    # Stable name from udev/99-so101-cameras.rules (/dev/videoN can change after a reboot).
+    video_device: /dev/overhead_camera
+    pixel_format: mjpeg2rgb  # MJPEG is the only 1080p format at 30 fps (YUYV is 5 fps)
+    image_width: 1920
+    image_height: 1080
+    framerate: 30.0
+    camera_name: overhead_camera
+    frame_id: overhead_camera_optical
+    # From scripts/calibrate_camera.py (checkerboard, 1920x1080).
+    camera_info_url: package://so101_perception/config/overhead_camera_info.yaml

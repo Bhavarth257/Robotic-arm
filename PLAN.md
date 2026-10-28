@@ -11,7 +11,7 @@ Plan for Claude Code. Work through milestones in order. A milestone is done only
 - **Dev machine:** laptop, RTX 3050 Laptop **4 GB VRAM**, 16 GB RAM, Ubuntu **22.04**, Python 3.10, ROS 2 **Humble** at `/opt/ros/humble`.
 - **Cloud training (free):** Kaggle notebooks (primary, T4), Lightning AI (secondary), Colab (fallback). Hugging Face ZeroGPU is for short inference calls and is not usable for training.
 - **Runtime:** laptop first; Raspberry Pi later (Pi 5 recommended, Ubuntu 22.04 + Humble, ONNX Runtime on CPU).
-- **Perception:** ArUco markers on objects. Camera: Evontro IMX335 (5 MP, 30 fps, USB), one per arm on top of the wrist (rotates with wrist roll); plus a fixed overhead Intel RealSense (to be bought). Until it arrives, the IMX335 is mounted overhead (decided 2026-10-25): ArUco needs only one ordinary camera. Run ArUco at 1280×720 or 1920×1080 (MJPEG): full 5 MP adds latency without improving pose accuracy at this range.
+- **Perception:** ArUco markers on objects. Camera: Evontro IMX335 (5 MP, 30 fps, USB), one per arm on top of the wrist (rotates with wrist roll); plus a fixed overhead Intel RealSense (to be bought). Until it arrives, a Lenovo 300 FHD webcam (1080p, 95° wide lens, USB) is the overhead camera (2026-10-28; first plan was the IMX335): ArUco needs only one ordinary camera. Run ArUco at 1280×720 or 1920×1080 (MJPEG): full 5 MP adds latency without improving pose accuracy at this range.
 - **Hardware status:** arms, wrist cameras and overhead camera available. Nothing runs on hardware until M8 and I say so.
 
 ## 2. Working rules

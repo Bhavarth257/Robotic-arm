@@ -1,0 +1,5 @@
+# Stable names for the SO-101 cameras: /dev/overhead_camera and /dev/wrist_camera.
+# (usb_cam mis-resolves /dev/v4l/by-id links, so it needs a link directly in /dev.)
+# Install: sudo cp 99-so101-cameras.rules /etc/udev/rules.d/ && sudo udevadm control --reload-rules && sudo udevadm trigger
+SUBSYSTEM=="video4linux", ATTRS{idVendor}=="17ef", ATTRS{idProduct}=="4831", ATTR{index}=="0", SYMLINK+="overhead_camera"
+SUBSYSTEM=="video4linux", ATTRS{idVendor}=="0bda", ATTRS{idProduct}=="3035", ATTR{index}=="0", SYMLINK+="wrist_camera"
