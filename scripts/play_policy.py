@@ -1,6 +1,6 @@
 """Watch a trained policy in the SAPIEN viewer: one env on the CPU sim, so it can run next to training.
 
-Usage: python scripts/play_policy.py --ckpt runs/<name>/best.pt [--episodes 5] [--seed 0]
+Usage: python scripts/play_policy.py --ckpt runs/<name>/best.pt [--episodes 5] [--seed 0] [--dr all]
 """
 import argparse
 import sys
@@ -21,10 +21,11 @@ def main():
     p.add_argument("--ckpt", required=True)
     p.add_argument("--episodes", type=int, default=5)
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--dr", nargs="*", default=[], help="domain randomisations to switch on, or 'all'")
     args = p.parse_args()
 
     env = gym.make("SO101PickPlace-v1", num_envs=1, obs_mode="state", sim_backend="cpu",
-                   control_mode="pd_joint_delta_pos", render_mode="human")
+                   control_mode="pd_joint_delta_pos", render_mode="human", domain_rand=args.dr)
     ck = torch.load(args.ckpt, weights_only=False, map_location="cpu")
     agent = Agent(ck["n_obs"], ck["n_act"])
     agent.load_state_dict(ck["agent"])
@@ -35,7 +36,8 @@ def main():
         success = False
         for _ in range(200):
             with torch.no_grad():
-                action = agent.get_action(obs.float(), deterministic=True)
+                # Older checkpoints saw fewer observations; new ones were appended at the end.
+                action = agent.get_action(obs.float()[:, :ck["n_obs"]], deterministic=True)
             obs, _, terminated, truncated, info = env.step(action)
             success |= bool(info["success"].any())
             env.render()

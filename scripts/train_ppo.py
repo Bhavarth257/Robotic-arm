@@ -183,7 +183,14 @@ def main():
         start_iter, global_step, best_success = resume["iteration"] + 1, resume["global_step"], resume["best_success"]
         print(f"resumed from {args.resume} at iteration {resume['iteration']}, step {global_step}")
     elif args.init:
-        agent.load_state_dict(torch.load(args.init, weights_only=False)["agent"])
+        state = torch.load(args.init, weights_only=False)["agent"]
+        for net in ("actor_mean", "critic"):
+            w = state[f"{net}.0.weight"]
+            if w.shape[1] < n_obs:
+                # New observations were appended at the end: zero weights for them, so the
+                # network starts out behaving exactly like the checkpoint.
+                state[f"{net}.0.weight"] = torch.cat([w, w.new_zeros(w.shape[0], n_obs - w.shape[1])], dim=1)
+        agent.load_state_dict(state)
         print(f"initialised policy from {args.init}")
 
     def save(name, iteration):

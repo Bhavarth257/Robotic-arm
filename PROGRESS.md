@@ -120,3 +120,42 @@ Target ≥ 95%: **pass**. M4 policy: `runs/ppo_pickplace_ft_1792858771/best.pt` 
 - Both failure videos are carry failures at the workspace edge after a good grasp: one ends holding the cube just past the zone corner, one folds the arm over its base.
 - `success_at_end` ≈ 0: after placing, the policy keeps moving and often knocks the cube. Fine for deployment (stop at success); worth a "stay still after placing" reward before M5.
 - Raise `num_eval_envs` (16 → 64) so `best.pt` is meaningful.
+
+## M5. Domain randomisation — 2026-10-28
+
+**Built**
+- `SO101PickPlace-v1(domain_rand=[...])`, any of 8 options or `all`:
+  cube size 2.5–3.5 cm, mass ×0.5–1.5, friction ×0.5–1.5 (per env, at build time); per-joint action gain 0.8–1.2 (stands in for actuator stiffness/damping ±20%: per-env PD gains cannot be changed on the GPU after start); 1-step (50 ms) action delay in half the episodes; cube position ±5 mm / yaw ±5° noise; cube pose 0–2 steps stale; joint offsets ±2° + ±0.5° noise. Only observations are corrupted; reward and success use the true state.
+- Observation 39 → 45: added the second-last action, so the policy can tell from the arm's motion whether its commands arrive late. `--init` widens a checkpoint's input layer with zero weights (identical behaviour at start, verified to 1e-6).
+- `evaluate.py --dr`, `play_policy.py --dr`; older checkpoints still run (they use the first n_obs observations).
+- `train_ppo.py` logs RAM and GPU memory every 10 iterations.
+
+**Bugs found on the way**
+- `_default_sim_config` had been indented inside `__init__`, so the larger PhysX buffers were never used (why 1024 envs crashed in M4). Fixed; buffers re-sized to fit 4 GB (1024 envs: 1.75 GB).
+- Action delay replayed the episode's first command forever: delayed envs (half of them) never moved. Found from the per-option test (43.8%, i.e. ~0% for delayed episodes). The first M5 run trained on this and got worse (46% → 30%).
+- The laptop froze at ~iteration 520 of that run: no swap configured; RAM rose 50% → 96% over a run, mostly outside the training process (it grows only ~1.2 MB/iteration). Added 8 GB swap; close TensorBoard during long runs.
+
+**M4 policy under each randomisation alone** (500 episodes, seed 0, after the delay fix):
+cube_friction 97.6%, cube_noise 96.8%, cube_latency 95.2%, joint_offset 95.0%, action_gain 94.2%, action_delay 89.6%; all on 78.8%.
+
+**Training** (fine-tune, all randomisation on, 20M steps each)
+| Run | Init | Result (500 ep., `--dr all`) |
+|---|---|---|
+| `ppo_pickplace_dr_1792916849` | M4 best | best.pt 84.2%, final.pt 77.2% |
+| `ppo_pickplace_dr_1792929366` | above + prev_action2 | **best.pt 86.2%** (431/500), grasp 99.8%, mean length 128 steps |
+
+Failure breakdown of the first run's best.pt (82 failures): 54 never got the cube to the zone (carry), 21 released over the zone but the cube did not rest properly, 7 never released; 72% of failures were delayed episodes (49% of all episodes).
+
+**Acceptance:** ≥ 90% with all randomisation on — **not met (86.2%)**. Proceeding anyway (agreed 2026-10-28): the ranges are guesses until M8b measures real latency, servo response and camera noise; retrain against measured ranges then. M5 policy: `runs/ppo_pickplace_dr_1792929366/best.pt`.
+
+## M6. Export and CPU inference — 2026-10-28
+
+**Built**
+- `scripts/export_onnx.py --ckpt <ckpt> --out models/so101_pickplace`: actor only (deterministic mean action) → `models/so101_pickplace.onnx`, plus `.json` with the observation layout (10 groups, 45 values, in order), action mapping (output clipped to [−1, 1] × [0.05 ×5, 0.2] rad per step, 20 Hz), home pose and zone centre. Uses PyTorch's legacy TorchScript exporter (works for this MLP; prints a deprecation warning).
+- `scripts/evaluate.py --onnx <file>`: closed-loop evaluation with ONNX Runtime on the CPU.
+- No observation normalisation stats: the PPO baseline trains on raw observations (`obs_normalisation: null` in the JSON).
+
+**Acceptance** (M5 policy `runs/ppo_pickplace_dr_1792929366/best.pt`)
+- Parity, 1000 random observations: max |ONNX − PyTorch| = 4.8e-6 (< 1e-4): **pass**.
+- Latency, laptop CPU, batch 1: median 0.014 ms, p99 0.026 ms (< 2 ms): **pass**.
+- Closed loop, 500 episodes, seed 0, all randomisation: ONNX 84.6% vs PyTorch 86.2% (within 2 points): **pass**.
