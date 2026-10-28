@@ -135,20 +135,19 @@ bool StsBus::receive(uint8_t id, size_t n_data, std::vector<uint8_t> & data)
   return true;
 }
 
-bool StsBus::sync_read_u16(uint8_t addr, const std::vector<uint8_t> & ids, std::vector<int> & out)
+bool StsBus::sync_read(uint8_t addr, uint8_t len, const std::vector<uint8_t> & ids,
+  std::vector<std::vector<uint8_t>> & out)
 {
-  std::vector<uint8_t> params{addr, 2};
+  std::vector<uint8_t> params{addr, len};
   params.insert(params.end(), ids.begin(), ids.end());
   if (!send(BROADCAST, INST_SYNC_READ, params)) {
     return false;
   }
-  out.assign(ids.size(), 0);
-  std::vector<uint8_t> data;
+  out.resize(ids.size());
   for (size_t i = 0; i < ids.size(); ++i) {
-    if (!receive(ids[i], 2, data)) {
+    if (!receive(ids[i], len, out[i])) {
       return false;
     }
-    out[i] = data[0] | (data[1] << 8);
   }
   return true;
 }

@@ -241,3 +241,19 @@ Failure breakdown of the first run's best.pt (82 failures): 54 never got the cub
 **Notes**
 - Real rest pose has shoulder_lift −1.828 rad, beyond the −1.745 limit: when torque comes on, the clamp lifts the shoulder ~5° off its stop.
 - First powered run not done yet.
+
+## M8a (part 3). First powered runs, fixes, P gain — 2026-10-29
+
+**First powered run (MoveIt, 10 % speed)**: moved, but jittery; gripper did not respond; arm stopped after 4–5 moves.
+- Stopping: the driver's tracking check fired (`wrist_roll` 0.50 rad behind its target, cause not identified: probably blocked) and held the arm, but MoveIt kept reporting SUCCEEDED because the trajectory controllers had no goal tolerances. Fixed: the hold now clears when commands match the measured pose again (next plan), and `arm_controller` has 0.05 rad goal tolerances (`stopped_velocity_tolerance` off).
+- Gripper: loose connector on servo 6, re-plugged by the user. Afterwards 2000/2000 bus reads OK. A servo that browns out comes back with torque off but still answers reads, so the driver cannot see it (open issue).
+- Jitter (from a recorded bag): 1–5 mrad around the smooth path; at desired speeds < 0.05 rad/s the servo stays still 40–94 % of the time, then steps (stick-slip / deadband). Small; less at higher speeds.
+- Sag: shoulder_lift ended 0.08–0.10 rad below target in extended poses.
+
+**Driver additions**
+- One SYNC READ of 6 bytes per servo: position, speed (now the servo's own, not a finite difference) and load (`effort` state = fraction of max torque).
+- Arm P gain set at torque-on (`p_gain`, default 32 = factory), written after LOCK so it lasts until power-off; LeRobot's stored 16 is untouched. Gripper keeps LeRobot's settings.
+
+**Diagnosis and result** (bags `m8a_hold` at P 16, `m8a_p32` at P 32; loads ≤ 22 % throughout, so the 50 % torque limit was never the cap)
+- Steady error per unit load: P 16 ≈ 0.3 rad, P 32 ≈ 0.17 rad, i.e. a stiffness of ~17 N·m/rad at P 32 (2.9 N·m max torque). Sim uses 1000 N·m/rad: a large sim-to-real gap for M8b. (MuJoCo's STS3215 model uses kp 17.8, consistent.)
+- P 32: hold errors ≤ 0.8° (wrist_roll 1.6° at 15 % load), end-of-move errors ≤ 0.014 rad, tracking error while moving ≤ 0.04 rad (was up to 0.13). No shaking or buzzing; user: "way better".

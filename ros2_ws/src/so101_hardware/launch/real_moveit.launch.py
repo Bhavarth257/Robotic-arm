@@ -20,7 +20,7 @@ DEFAULT_CALIB = str(Path.home() / ".cache/huggingface/lerobot/calibration/robots
 def launch_setup(context):
     share = Path(get_package_share_directory("so101_hardware"))
     args = {k: LaunchConfiguration(k).perform(context)
-            for k in ("port", "calibration_file", "read_only", "torque_limit")}
+            for k in ("port", "calibration_file", "read_only", "torque_limit", "p_gain")}
     moveit_config = (MoveItConfigsBuilder("so101_new_calib", package_name="so101_moveit_config")
                      .robot_description(file_path=str(share / "urdf" / "so101_real.urdf.xacro"), mappings=args)
                      .to_moveit_configs())
@@ -47,6 +47,7 @@ def generate_launch_description():
         DeclareLaunchArgument("calibration_file", default_value=DEFAULT_CALIB),
         DeclareLaunchArgument("read_only", default_value="true"),
         DeclareLaunchArgument("torque_limit", default_value="500"),
+        DeclareLaunchArgument("p_gain", default_value="32"),
         DeclareLaunchArgument("rviz", default_value="true"),
         OpaqueFunction(function=launch_setup),
     ])

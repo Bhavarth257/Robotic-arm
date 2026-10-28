@@ -7,6 +7,8 @@
   <xacro:arg name="read_only" default="true"/>
   <!-- Per mille of max torque; 500 = 50 % for the first tests, so a collision stalls instead of breaks. -->
   <xacro:arg name="torque_limit" default="500"/>
+  <!-- Servo P gain for the arm joints (factory 32; LeRobot stores 16, which sags 5-6 deg when extended). -->
+  <xacro:arg name="p_gain" default="32"/>
 
   <xacro:include filename="$(find so101_description)/urdf/so101.urdf"/>
 
@@ -22,6 +24,7 @@
       </command_interface>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
+      <state_interface name="effort"/>  <!-- servo load, fraction of max torque -->
     </joint>
   </xacro:macro>
 
@@ -32,6 +35,7 @@
       <param name="calibration_file">$(arg calibration_file)</param>
       <param name="read_only">$(arg read_only)</param>
       <param name="torque_limit">$(arg torque_limit)</param>
+      <param name="p_gain">$(arg p_gain)</param>
       <param name="max_velocity">2.5</param>  <!-- rad/s, arm joints -->
       <param name="max_tracking_error">0.5</param>  <!-- rad, arm joints: beyond this the driver holds -->
     </hardware>
@@ -49,6 +53,7 @@
       </command_interface>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
+      <state_interface name="effort"/>  <!-- servo load, fraction of max torque -->
     </joint>
   </ros2_control>
 </robot>

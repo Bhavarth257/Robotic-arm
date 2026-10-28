@@ -23,6 +23,15 @@ arm_controller:
     joints: [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll]
     command_interfaces: [position]
     state_interfaces: [position, velocity]
+    # Without goal tolerances a move "succeeds" even when the arm never got there (e.g. driver holding).
+    constraints:
+      goal_time: 1.0  # s after the trajectory's end to get within tolerance
+      stopped_velocity_tolerance: 0.0  # off: velocity is a finite difference of 1-tick steps, too noisy
+      shoulder_pan: {goal: 0.05}
+      shoulder_lift: {goal: 0.05}
+      elbow_flex: {goal: 0.05}
+      wrist_flex: {goal: 0.05}
+      wrist_roll: {goal: 0.05}
 
 gripper_controller:
   ros__parameters:
