@@ -159,3 +159,32 @@ Failure breakdown of the first run's best.pt (82 failures): 54 never got the cub
 - Parity, 1000 random observations: max |ONNX − PyTorch| = 4.8e-6 (< 1e-4): **pass**.
 - Latency, laptop CPU, batch 1: median 0.014 ms, p99 0.026 ms (< 2 ms): **pass**.
 - Closed loop, 500 episodes, seed 0, all randomisation: ONNX 84.6% vs PyTorch 86.2% (within 2 points): **pass**.
+
+## M7a/M7b. ROS 2 description and MoveIt config — 2026-10-28
+
+**Built**
+- `ros2_ws/src/so101_description`: URDF generated at build time from `assets/so101/so101.urdf` (single source of truth; only mesh paths become `package://` URIs), meshes, `display.launch.py` (robot_state_publisher + joint sliders + RViz).
+- `ros2_ws/src/so101_moveit_config`: MoveIt Setup Assistant (groups `arm` = chain base_link→gripper_frame_link, `gripper`; poses home = sim home pose, zero, rest, open 0.6, closed −0.17; mock ros2_control hardware; JointTrajectoryControllers), with three fixes to the generated files:
+  - `joint_limits.yaml`: integer limits made move_group exit at startup (Humble expects doubles); now 2.0 rad/s, 4.0 rad/s² with acceleration limits on.
+  - `moveit_controllers.yaml`: added `action_ns: follow_joint_trajectory` + `default: true` (plan worked, execute did not).
+  - `kinematics.yaml`: pick_ik position-only (`rotation_scale: 0`): a 5-DoF arm cannot reach arbitrary orientations.
+- ROS installed packages: MoveIt + pick_ik from apt (Humble).
+
+**Acceptance:** RViz shows the arm; MoveIt plans and executes home ↔ zero, gripper open/closed and dragged goals on mock hardware: **pass** (user check).
+
+## M7c. Policy bridge (C++) — 2026-10-28
+
+**Built** `ros2_ws/src/so101_policy_bridge`
+- `policy_core` (no ROS): builds the 45-value observation exactly like the env (same order; TCP quaternion flipped to w ≥ 0 as in the sim; cube yaw as sin/cos(4·yaw); zone at the env's (0.15, 0.20, 0.0005); last two clipped actions), runs the ONNX actor with ONNX Runtime 1.23.2 C++ (prebuilt release in `third_party/`, not in git), and computes targets = q + action × [0.05 ×5, 0.2] rad.
+- `bridge_node` (20 Hz): `/joint_states` (by joint name) + `/object_pose` (PoseStamped in base_link) + TF (TCP = midpoint of `Fixed_Jaw_tip`/`Moving_Jaw_tip`, orientation of `gripper_link`) → `Float64MultiArray` on `/forward_position_controller/commands`. `dry_run:=true` by default (logs only). Holds (publishes nothing, resets action history) if joint states > 100 ms or object pose > 200 ms old, TF missing, or the TCP leaves a box (x −0.05…0.45, y ±0.35, z 0…0.5 m). Targets clamped to URDF joint limits. Parameters in `config/bridge.yaml`.
+- `scripts/record_replay.py`: 3 sim episodes (305 steps, all successful) driven by the ONNX policy → `test/data/replay.csv`.
+
+**Acceptance**
+- Replay test (`colcon test --packages-select so101_policy_bridge`): over 305 steps, C++ observation and action match the sim within 4.6e-5 (inputs agree to ~4e-8; the rest is float32 vs float64 rounding fed back through prev_action): **pass**.
+- TF check: TCP from robot_state_publisher vs the sim's TCP for 11 recorded poses: 0.000 mm, quaternion 2e-7: **pass**.
+- `ros2 launch so101_policy_bridge bridge.launch.py` runs without hardware: loads the model, dry run, watchdog holds with no input: **pass**.
+
+**Open issues**
+- No `forward_position_controller` is configured yet (MoveIt's mock setup only has trajectory controllers); add it with the real hardware interface (M8a) and switch controllers between MoveIt and the policy.
+- D4 (keep running while the gripper hides the cube from the camera) not implemented: needs the real camera to see how often it happens.
+- Testing tip: a running MoveIt demo publishes `/joint_states` too; run checks with a separate `ROS_DOMAIN_ID`.

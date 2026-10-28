@@ -1,0 +1,15 @@
+so101_policy_bridge:
+  ros__parameters:
+    dry_run: true            # log only; set false (launch arg) to command the robot
+    rate_hz: 20.0            # must match training (20 Hz control)
+    joint_names: [shoulder_pan, shoulder_lift, elbow_flex, wrist_flex, wrist_roll, gripper]
+    max_delta: [0.05, 0.05, 0.05, 0.05, 0.05, 0.2]  # rad per step for action = 1 (pd_joint_delta_pos)
+    joint_lower: [-1.91986, -1.74533, -1.69, -1.65806, -2.74385, -0.174533]  # URDF limits
+    joint_upper: [1.91986, 1.74533, 1.69, 1.65806, 2.84121, 1.74533]
+    zone_pos: [0.15, 0.20, 0.0005]  # env.zone.pose.p, as the policy saw it
+    workspace_min: [-0.05, -0.35, 0.0]  # TCP box in base_link, m: stop if the gripper leaves it
+    workspace_max: [0.45, 0.35, 0.50]
+    joint_state_timeout: 0.1
+    object_pose_timeout: 0.2
+    base_frame: base_link
+    command_topic: /forward_position_controller/commands
