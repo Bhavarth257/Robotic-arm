@@ -1,0 +1,6 @@
+<library path="so101_hardware">
+  <class name="so101_hardware/SO101System" type="so101_hardware::SO101System"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>Real SO-101 follower on a Feetech STS3215 bus (read-only for now).</description>
+  </class>
+</library>

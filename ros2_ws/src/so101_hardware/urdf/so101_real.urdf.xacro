@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<!-- Real SO-101: the sim URDF plus the STS3215 hardware interface. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="so101_new_calib">
+  <xacro:arg name="port" default="/dev/ttyACM0"/>
+  <xacro:arg name="calibration_file" default=""/>
+
+  <xacro:include filename="$(find so101_description)/urdf/so101.urdf"/>
+
+  <!-- Arm joints: sim_rad = sign * deg2rad(lerobot_deg - offset_deg). Gripper: LeRobot 0..100 -> closed..open.
+       Signs and offsets are checked against RViz with the arm moved by hand (M8a). -->
+  <xacro:macro name="arm_joint" params="name sign:=1 offset_deg:=0.0">
+    <joint name="${name}">
+      <param name="sign">${sign}</param>
+      <param name="offset_deg">${offset_deg}</param>
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </xacro:macro>
+
+  <ros2_control name="SO101Real" type="system">
+    <hardware>
+      <plugin>so101_hardware/SO101System</plugin>
+      <param name="port">$(arg port)</param>
+      <param name="calibration_file">$(arg calibration_file)</param>
+    </hardware>
+    <xacro:arm_joint name="shoulder_pan"/>
+    <xacro:arm_joint name="shoulder_lift"/>
+    <xacro:arm_joint name="elbow_flex"/>
+    <xacro:arm_joint name="wrist_flex"/>
+    <xacro:arm_joint name="wrist_roll"/>
+    <joint name="gripper">
+      <param name="closed_rad">-0.175</param>
+      <param name="open_rad">1.745</param>
+      <command_interface name="position"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+</robot>

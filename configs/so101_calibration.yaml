@@ -1,7 +1,7 @@
 # SO-101 joint conventions: sim (URDF "new calibration") vs real (LeRobot).
 # Both use "zero = middle of the joint's range", so offsets should be ~0 after LeRobot calibration.
-# Directions and the gripper mapping are NOT verified on hardware yet (M8a).
-verified_on_hardware: false
+# Directions, offsets and the gripper mapping checked on hardware in M8a.
+verified_on_hardware: true  # 2026-10-29: all signs +1, offsets 0, gripper linear (RViz vs real arm, M8a)
 
 # Sim: radians. Real: LeRobot follower with use_degrees=True (arm joints in degrees).
 # real_deg = sign * rad2deg(sim_rad) + offset_deg

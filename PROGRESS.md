@@ -207,3 +207,18 @@ Failure breakdown of the first run's best.pt (82 failures): 54 never got the cub
 - `/object_pose` at ~10 Hz while the camera gives 30 fps: the node processes full 1080p frames; detecting on a downscaled image or a region of interest would speed it up. The bridge's 200 ms watchdog tolerates it.
 - Calibration RMS reprojection error not recorded; printed marker sizes not re-measured (assumed 80 / 22 mm).
 - Wrist camera not in the launch yet. D4 (cube hidden by the gripper) still open.
+
+## M8a (part 1). LeRobot calibration + read-only hardware interface — 2026-10-29
+
+**Done**
+- LeRobot 0.4.4 in its own venv `~/lerobot-venv` (newest release for Python 3.10; needs torch < 2.11, so it cannot share the training venv). CPU torch 2.10.0 / torchvision 0.25.0 installed first: the CUDA build (~3 GB) timed out on download and calibration needs no GPU.
+- Follower recalibrated on Ubuntu: `lerobot-calibrate --robot.type=so101_follower --robot.port=/dev/ttyACM0 --robot.id=follower` → `~/.cache/huggingface/lerobot/calibration/robots/so_follower/follower.json`. Arm ranges (± from mid): pan 114.6°, lift 105.2°, elbow 99.3°, wrist flex 101.5° (sim limits 110 / 100 / 96.8 / 95°); wrist roll full turn; gripper 131°.
+- `ros2_ws/src/so101_hardware` (C++): `StsBus` (Feetech protocol 0 over termios at 1 Mbaud, SYNC READ of Present_Position) and the ros2_control plugin `so101_hardware/SO101System`. It reads LeRobot's calibration file and converts like LeRobot `use_degrees=True` (zero = middle of the recorded range); gripper 0..100 → −0.175..1.745 rad. **Read-only**: never writes to the servos; commands are ignored. Per-joint sign/offset in `urdf/so101_real.urdf.xacro`. `launch/real_view.launch.py`: robot_state_publisher + controller_manager + joint_state_broadcaster + RViz.
+
+**Acceptance**
+- All 6 servos answer; `/joint_states` at 100.0 Hz with no failed reads.
+- RViz follows the arm moved by hand: every joint turns the right way, zero pose and gripper match ("fully accurate", user check). All signs +1, offsets 0; `configs/so101_calibration.yaml` marked verified.
+
+**Notes**
+- `colcon build` fails with `No module named 'catkin_pkg'` when a Python venv is active: `deactivate` first.
+- Real ranges are 4–9° per side wider than the sim limits; the write path must clamp targets to the URDF limits.
