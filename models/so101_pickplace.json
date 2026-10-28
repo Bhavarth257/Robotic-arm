@@ -1,0 +1,80 @@
+{
+  "source_checkpoint": "runs/ppo_pickplace_dr_1792929366/best.pt",
+  "n_obs": 45,
+  "n_act": 6,
+  "obs_layout": [
+    {
+      "name": "agent.qpos",
+      "size": 6
+    },
+    {
+      "name": "agent.qvel",
+      "size": 6
+    },
+    {
+      "name": "extra.tcp_pose",
+      "size": 7
+    },
+    {
+      "name": "extra.cube_pos",
+      "size": 3
+    },
+    {
+      "name": "extra.cube_yaw",
+      "size": 2
+    },
+    {
+      "name": "extra.zone_pos",
+      "size": 3
+    },
+    {
+      "name": "extra.tcp_to_cube",
+      "size": 3
+    },
+    {
+      "name": "extra.cube_to_zone",
+      "size": 3
+    },
+    {
+      "name": "extra.prev_action",
+      "size": 6
+    },
+    {
+      "name": "extra.prev_action2",
+      "size": 6
+    }
+  ],
+  "control_hz": 20,
+  "action": {
+    "mode": "pd_joint_delta_pos",
+    "joints": [
+      "shoulder_pan",
+      "shoulder_lift",
+      "elbow_flex",
+      "wrist_flex",
+      "wrist_roll",
+      "gripper"
+    ],
+    "max_delta_rad": [
+      0.05,
+      0.05,
+      0.05,
+      0.05,
+      0.05,
+      0.2
+    ]
+  },
+  "home_qpos": [
+    0.0,
+    -0.5,
+    -0.8,
+    1.2,
+    0.0,
+    0.6
+  ],
+  "zone_center": [
+    0.15,
+    0.2
+  ],
+  "obs_normalisation": null
+}
