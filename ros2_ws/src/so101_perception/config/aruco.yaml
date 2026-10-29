@@ -7,7 +7,7 @@
     cube_size: 0.030
     # Table marker (id 0) centre in base_link and the yaw of its x axis. With the marker's top edge
     # pointing to robot +x (forward), its x axis points to robot -y: yaw = -pi/2.
-    # Measured: the black square's back-right corner is 30 cm forward of and 33 cm right of the point
-    # under the shoulder_pan axis; centre = corner + 4 cm forward + 4 cm left, x += 0.0388 for base_link.
-    table_marker_pose: [0.3788, -0.29, 0.0, -1.5708]
+    # From scripts/calibrate_table_marker.py (7 spots, RMS 49 mm, before the ray-plane cube fix):
+    # provisional, rerun it. The hand measurement [0.3788, -0.29, 0, -1.5708] had the marker on the wrong side.
+    table_marker_pose: [0.2835, 0.2923, 0.0, -1.7057]
     camera_pose_smoothing: 0.1  # 0..1 per frame; lower = steadier, slower to follow a bumped camera

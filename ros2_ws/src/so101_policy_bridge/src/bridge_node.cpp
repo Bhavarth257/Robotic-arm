@@ -51,6 +51,8 @@ public:
     joint_timeout_ = declare_parameter("joint_state_timeout", 0.1);
     object_timeout_ = declare_parameter("object_pose_timeout", 0.2);
     base_frame_ = declare_parameter("base_frame", std::string("base_link"));
+    integrate_targets_ = declare_parameter("integrate_targets", true);
+    max_lead_ = declare_parameter("max_lead", 0.15);
     auto zone = declare_parameter("zone_pos", std::vector<double>{});
     const auto model = declare_parameter("model_path", std::string());
     const double rate = declare_parameter("rate_hz", 20.0);
@@ -124,6 +126,7 @@ private:
     // Stale input: send nothing (servos hold their last target) and start a fresh episode later.
     RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000, "holding: %s", why);
     core_->reset();
+    have_target_ = false;
   }
 
   void tick()
@@ -145,10 +148,22 @@ private:
     }
 
     const Joints action = core_->step(in_);
-    Joints target = PolicyCore::targets(in_.qpos, action, max_delta_);
+    // The sim's joints (stiffness 1000) reach every target, so "measured + step" there equals "last target
+    // + step". The real servos (~17 N*m/rad) sag under load: stepping from the measured pose let the sag add
+    // up every step (first live run: the gripper sank into the table). Stepping from the last target keeps
+    // the sag a constant offset; max_lead caps how far the target may run ahead of the measured pose.
+    Joints base = in_.qpos;
+    if (integrate_targets_ && have_target_) {
+      for (size_t i = 0; i < base.size(); ++i) {
+        base[i] = std::clamp(last_target_[i], in_.qpos[i] - max_lead_, in_.qpos[i] + max_lead_);
+      }
+    }
+    Joints target = PolicyCore::targets(base, action, max_delta_);
     for (size_t i = 0; i < target.size(); ++i) {
       target[i] = std::clamp(target[i], lower_[i], upper_[i]);
     }
+    last_target_ = target;
+    have_target_ = true;
 
     std_msgs::msg::Float64MultiArray msg;
     msg.data.assign(target.begin(), target.end());
@@ -168,6 +183,10 @@ private:
   std::vector<double> ws_min_, ws_max_;
   double joint_timeout_, object_timeout_;
   std::string base_frame_;
+  bool integrate_targets_;
+  double max_lead_;
+  Joints last_target_{};
+  bool have_target_ = false;
 
   std::unique_ptr<PolicyCore> core_;
   Inputs in_;

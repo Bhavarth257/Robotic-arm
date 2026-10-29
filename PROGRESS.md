@@ -257,3 +257,27 @@ Failure breakdown of the first run's best.pt (82 failures): 54 never got the cub
 **Diagnosis and result** (bags `m8a_hold` at P 16, `m8a_p32` at P 32; loads ≤ 22 % throughout, so the 50 % torque limit was never the cap)
 - Steady error per unit load: P 16 ≈ 0.3 rad, P 32 ≈ 0.17 rad, i.e. a stiffness of ~17 N·m/rad at P 32 (2.9 N·m max torque). Sim uses 1000 N·m/rad: a large sim-to-real gap for M8b. (MuJoCo's STS3215 model uses kp 17.8, consistent.)
 - P 32: hold errors ≤ 0.8° (wrist_roll 1.6° at 15 % load), end-of-move errors ≤ 0.014 rad, tracking error while moving ≤ 0.04 rad (was up to 0.13). No shaking or buzzing; user: "way better".
+
+## M8e (prep). Table-marker calibration, ArUco fixes, first live policy runs — 2026-10-30
+
+**Perception**
+- `aruco_node`: `minMarkerDistanceRate` 0.01. Our markers' thin white margins give two close candidates (paper edge, black square); OpenCV 4.5 kept the paper edge, which never decodes: table marker undetected in 10/10 frames under glare, 10/10 found after.
+- `aruco_node`: cube position = the marker centre's viewing ray meeting the face's known height, not the 22 mm marker's own PnP depth (that put the cube centre 4.8 cm below the table and moved it sideways near the image edge). Now z = 0.015 exactly; uses only the camera pose from the 80 mm table marker.
+- `scripts/calibrate_table_marker.py`: cube seen by the camera vs the jaw-tip midpoint (FK, arm limp, moved by hand) at 4+ spots → 2-D rigid fit → `table_marker_pose`. Refuses spots spanning < 15 cm; `q` works at both prompts.
+- Runs: 1st spots bunched within 5 cm + 3 junk spots (RMS 58 mm, discarded); 2nd 7 spread spots, RMS 49 mm (before the ray fix) → `[0.2835, 0.2923, 0, -1.7057]`, provisional. The hand-measured pose had the marker on the wrong side of the arm (y −0.29 vs +0.29).
+- Checks with a ruler: arm FK jaw tips 30.3 / 15.3 cm from the pan axis vs 30 / 15 cm (tips on the table read z −0.7 / −1.2 cm: the table is ~1 cm below base_link). Camera, cube ↔ table marker: 20.0 / ~38.2 cm vs 19 / 36.5 cm (before the ray fix).
+
+**Policy bridge**
+- Dry run: actions follow the cube (pan −0.2 with the cube ahead, +1.0 with it to the left).
+- `workspace_min` z −0.03 (tips resting on the table read below 0, so the bridge held at rest).
+- `integrate_targets` (default on): step from the last target instead of the measured pose, capped at `max_lead` 0.15 rad. With the soft real servos, stepping from the sagging pose made the gripper sink a little more every step.
+
+**First live runs** (bags `m8e_live2`, `m8e_live3`; real_moveit `read_only:=false`, `forward_position_controller`)
+- The gripper reached the cube position the camera reported to ~1.5 cm, but the real cube was elsewhere: the remaining table-marker error.
+- Each run stopped after 1–2 s: the gripper over the cube hid it from the overhead camera (D4), `/object_pose` went stale, the bridge held.
+- The policy drove the jaw tips to z ≈ −0.03 (cube centre 0.015): tips hit the table. Movement jerky (actions near ±1, sign flips).
+
+**Next**
+- Wrist camera (IMX335, `/dev/wrist_camera`): intrinsics, hand-eye calibration from ~12 limp-arm poses viewing the table marker (also gives the table marker's pose in base_link, replacing the provisional value), wrist ArUco → `/object_pose` with overhead fallback, hold the last cube pose while both are blocked.
+- Table floor in the bridge so commanded tips cannot go below the table.
+- M8b: system ID (stiffness ~17 N·m/rad vs sim 1000) and retraining.

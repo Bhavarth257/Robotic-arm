@@ -7,9 +7,15 @@ so101_policy_bridge:
     joint_lower: [-1.91986, -1.74533, -1.69, -1.65806, -2.74385, -0.174533]  # URDF limits
     joint_upper: [1.91986, 1.74533, 1.69, 1.65806, 2.84121, 1.74533]
     zone_pos: [0.15, 0.20, 0.0005]  # env.zone.pose.p, as the policy saw it
-    workspace_min: [-0.05, -0.35, 0.0]  # TCP box in base_link, m: stop if the gripper leaves it
+    # TCP box in base_link, m: stop if the gripper leaves it. z min -0.03: the real table is ~1-2 cm below
+    # base_link (jaw tips resting on it read z = -0.7 .. -1.8 cm).
+    workspace_min: [-0.05, -0.35, -0.03]
     workspace_max: [0.45, 0.35, 0.50]
     joint_state_timeout: 0.1
     object_pose_timeout: 0.2
     base_frame: base_link
+    # Step from the last target, not the measured pose: the real servos sag under load (sim does not), and
+    # stepping from the sagging pose sank the gripper into the table. max_lead: rad the target may lead.
+    integrate_targets: true
+    max_lead: 0.15
     command_topic: /forward_position_controller/commands

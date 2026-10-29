@@ -59,10 +59,15 @@ public:
     tf2::Quaternion q;
     q.setRPY(0, 0, tm[3]);
     base_from_table_ = tf2::Transform(q, tf2::Vector3(tm[0], tm[1], tm[2]));
+    table_z_ = tm[2];
 
     dict_ = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_4X4_50);
     params_ = cv::aruco::DetectorParameters::create();
     params_->cornerRefinementMethod = cv::aruco::CORNER_REFINE_SUBPIX;
+    // Our markers have thin white margins, so the paper edge and the black square give two nearly equal
+    // candidates; OpenCV 4.5 drops one of a close pair (default rate 0.05) and kept the paper edge, which
+    // never decodes: marker 0 went undetected in 10/10 frames under glare. 0.01 keeps both: 10/10 found.
+    params_->minMarkerDistanceRate = 0.01;
 
     const auto qos = rclcpp::SensorDataQoS();
     info_sub_ = create_subscription<sensor_msgs::msg::CameraInfo>(
@@ -134,9 +139,24 @@ private:
       cv::aruco::estimatePoseSingleMarkers(std::vector<std::vector<cv::Point2f>>{corners[best]},
         cube_marker_size_, K_, D_, rv, tv);
       const tf2::Transform base_from_marker = base_from_cam_ * to_tf(rv[0], tv[0]);
-      // Marker z points out of the face, so the centre is half a cube behind it.
-      const tf2::Vector3 centre = base_from_marker * tf2::Vector3(0, 0, -cube_size_ / 2);
-      const tf2::Matrix3x3 & R = base_from_marker.getBasis();
+      const tf2::Matrix3x3 & R = base_from_marker.getBasis();  // marker z points out of the face
+      // Position: the marker centre's viewing ray meets the face's known height above the table. The 22 mm
+      // marker's own PnP depth was ~5 cm off (cube centre below the table), which also moved it sideways by
+      // up to 8 cm near the image edge; this relies only on the camera pose from the 80 mm table marker.
+      const auto & c = corners[best];
+      std::vector<cv::Point2f> px{(c[0] + c[1] + c[2] + c[3]) * 0.25f}, n;
+      cv::undistortPoints(px, n, K_, D_);
+      const tf2::Vector3 eye = base_from_cam_.getOrigin();
+      const tf2::Vector3 ray = base_from_cam_.getBasis() * tf2::Vector3(n[0].x, n[0].y, 1.0);
+      const bool top = ids[best] == 1;
+      const double face_z = table_z_ + (top ? cube_size_ : cube_size_ / 2);
+      if (ray.z() > -1e-3) {
+        publish_debug(img, ids, corners, m.header);
+        return;  // ray does not come down to the table: camera pose not usable
+      }
+      const tf2::Vector3 hit = eye + ray * ((face_z - eye.z()) / ray.z());
+      const tf2::Vector3 centre = top ? hit - tf2::Vector3(0, 0, cube_size_ / 2) :
+        hit - tf2::Vector3(R[0][2], R[1][2], 0).normalized() * (cube_size_ / 2);
       // Top face: yaw of the marker's x axis. Side face: yaw of its outward normal.
       // Both give the cube's yaw up to a multiple of 90 deg, which is all the policy uses.
       const double yaw = ids[best] == 1 ? std::atan2(R[1][0], R[0][0]) : std::atan2(R[1][2], R[0][2]);
@@ -192,7 +212,7 @@ private:
   }
 
   std::string base_frame_;
-  double table_marker_size_, cube_marker_size_, cube_size_, smoothing_;
+  double table_marker_size_, cube_marker_size_, cube_size_, smoothing_, table_z_;
   tf2::Transform base_from_table_, base_from_cam_;
   bool have_cam_ = false;
   cv::Mat K_, D_;
